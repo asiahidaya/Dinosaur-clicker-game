@@ -1,125 +1,185 @@
 import pygame
 import random
 import time
+import sys
 
-# Initialize Pygame
 pygame.init()
 
-# Set up display
+# Screen
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Dinosaur Clicker Game")
 
 # Colors
 WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
 BLACK = (0, 0, 0)
 
-# Load the Dinosaur Image
-try:
-    dino_image = pygame.image.load('dino.png')  # Make sure you have a 'dino.png' file in the same directory as this script
-    dino_rect = dino_image.get_rect()
-except pygame.error:
-    print("Error: dino.png not found! Please make sure 'dino.png' is in the same directory as the script.")
-    exit()
-
-# Initial Position
-dino_rect.topleft = (random.randint(100, WIDTH - 100), random.randint(100, HEIGHT - 100))
-
-# Font for Score
+# Fonts
 font = pygame.font.SysFont(None, 36)
+big_font = pygame.font.SysFont(None, 60)
 
-# Variables
-score = 0
+# Load assets
+dino = pygame.image.load("dino.png")
+dino_rect = dino.get_rect()
+
+click_sound = pygame.mixer.Sound("click_sound.wav")
+game_over_sound = pygame.mixer.Sound("game_over.wav")
+
 clock = pygame.time.Clock()
 
-# Game timer (in seconds)
-start_time = time.time()
-game_duration = 30  # 30 seconds
-
-# Initialize sound
-pygame.mixer.init()
-click_sound = pygame.mixer.Sound('click_sound.wav')  # Replace with the correct sound file
-game_over_sound = pygame.mixer.Sound('game_over.wav')  # Game Over sound file
-
-# Load high score from a file (if it exists)
+# High score
 try:
-    with open('high_score.txt', 'r') as f:
+    with open("high_score.txt", "r") as f:
         high_score = int(f.read())
-except FileNotFoundError:
-    high_score = 0  # If the file doesn't exist, start with 0
+except:
+    high_score = 0
 
-# Countdown before the game starts
-countdown_time = 3
-countdown_start_time = time.time()
+# ================= START SCREEN =================
+def start_screen():
+    while True:
+        screen.fill(WHITE)
 
-while countdown_time > 0:
-    screen.fill(WHITE)
-    countdown_text = font.render(f"Starting in {countdown_time}...", True, BLACK)
-    screen.blit(countdown_text, (WIDTH // 2 - countdown_text.get_width() // 2, HEIGHT // 3))
-    
-    pygame.display.flip()
-    
-    if time.time() - countdown_start_time >= 1:
-        countdown_time -= 1
-        countdown_start_time = time.time()
-    
-    clock.tick(1)
+        title = big_font.render("Dino Clicker", True, BLACK)
+        msg = font.render("Press 1-Easy  2-Medium  3-Hard", True, BLACK)
 
-# Game Loop
-running = True
-while running:
-    screen.fill(WHITE)
-    
-    # Check if time is up
-    elapsed_time = time.time() - start_time
-    if elapsed_time >= game_duration:
-        game_over_sound.play()  # Play game over sound
-        running = False
-        # Game Over message
-        game_over_text = font.render("Game Over!", True, BLACK)
-        final_score_text = font.render(f"Final Score: {score}", True, BLACK)
-        screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 3))
-        screen.blit(final_score_text, (WIDTH // 2 - final_score_text.get_width() // 2, HEIGHT // 2))
-        
-        # Wait for 3 seconds before closing the game
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, HEIGHT//3))
+        screen.blit(msg, (WIDTH//2 - msg.get_width()//2, HEIGHT//2))
+
         pygame.display.flip()
-        time.sleep(3)  # 3 seconds before exiting
-    
-    # Handle events
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        
-        # Detect mouse click
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if dino_rect.collidepoint(event.pos):  # Check if the dinosaur was clicked
-                score += 1
-                dino_rect.topleft = (random.randint(100, WIDTH - 100), random.randint(100, HEIGHT - 100))  # Move the dino
-                click_sound.play()  # Play the click sound
 
-    # Draw the dinosaur
-    screen.blit(dino_image, dino_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-    # Draw the score
-    score_text = font.render(f"Score: {score}", True, BLACK)
-    screen.blit(score_text, (10, 10))
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    return 3   # slow
+                if event.key == pygame.K_2:
+                    return 6   # medium
+                if event.key == pygame.K_3:
+                    return 10  # fast
 
-    # Update high score
+# ================= GAME =================
+def game(speed):
+    global high_score
+
+    score = 0
+    combo = 0
+    last_click_time = 0
+
+    start_time = time.time()
+    duration = 30
+
+    dino_rect.topleft = (random.randint(50, WIDTH-100), random.randint(50, HEIGHT-100))
+
+    dx = random.choice([-speed, speed])
+    dy = random.choice([-speed, speed])
+
+    while True:
+        screen.fill(WHITE)
+
+        elapsed = int(time.time() - start_time)
+        remaining = max(0, duration - elapsed)
+
+        # EVENTS
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if dino_rect.collidepoint(event.pos):
+                    current_time = time.time()
+
+                    # Combo logic
+                    if current_time - last_click_time < 0.7:
+                        combo += 1
+                    else:
+                        combo = 1
+
+                    score += combo
+                    last_click_time = current_time
+
+                    click_sound.play()
+
+                    # Move dino randomly
+                    dino_rect.topleft = (
+                        random.randint(50, WIDTH-100),
+                        random.randint(50, HEIGHT-100)
+                    )
+
+        # MOVE DINO
+        dino_rect.x += dx
+        dino_rect.y += dy
+
+        # Bounce
+        if dino_rect.left <= 0 or dino_rect.right >= WIDTH:
+            dx *= -1
+        if dino_rect.top <= 0 or dino_rect.bottom >= HEIGHT:
+            dy *= -1
+
+        # TIME UP
+        if remaining == 0:
+            game_over_sound.play()
+            return score
+
+        # DRAW
+        screen.blit(dino, dino_rect)
+
+        score_text = font.render(f"Score: {score}", True, BLACK)
+        combo_text = font.render(f"Combo: x{combo}", True, BLACK)
+        time_text = font.render(f"Time: {remaining}", True, BLACK)
+        high_text = font.render(f"High: {high_score}", True, BLACK)
+
+        screen.blit(score_text, (10, 10))
+        screen.blit(combo_text, (10, 40))
+        screen.blit(time_text, (WIDTH//2 - 50, 10))
+        screen.blit(high_text, (WIDTH - 150, 10))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+# ================= GAME OVER =================
+def game_over(score):
+    global high_score
+
     if score > high_score:
         high_score = score
-        with open('high_score.txt', 'w') as f:
+        with open("high_score.txt", "w") as f:
             f.write(str(high_score))
 
-    # Display high score
-    high_score_text = font.render(f"High Score: {high_score}", True, BLACK)
-    screen.blit(high_score_text, (WIDTH - high_score_text.get_width() - 10, 10))
+    while True:
+        screen.fill(WHITE)
 
-    # Update the display
-    pygame.display.flip()
+        title = big_font.render("Game Over", True, BLACK)
+        score_text = font.render(f"Score: {score}", True, BLACK)
+        high_text = font.render(f"High Score: {high_score}", True, BLACK)
+        msg = font.render("Press R to Restart or Q to Quit", True, BLACK)
 
-    # Set the frame rate
-    clock.tick(30)
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, HEIGHT//4))
+        screen.blit(score_text, (WIDTH//2 - score_text.get_width()//2, HEIGHT//2))
+        screen.blit(high_text, (WIDTH//2 - high_text.get_width()//2, HEIGHT//2 + 40))
+        screen.blit(msg, (WIDTH//2 - msg.get_width()//2, HEIGHT - 100))
 
-# Quit the game
-pygame.quit()
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    return True
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+
+# ================= MAIN =================
+while True:
+    speed = start_screen()
+    final_score = game(speed)
+    restart = game_over(final_score)
+    if not restart:
+        break
